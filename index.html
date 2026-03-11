@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CorpOS — ログイン</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0b0f; --surface: #111318; --surface2: #181b22; --surface3: #1e2230;
+    --border: #252a38; --accent: #4f6ef7; --accent2: #7c3aed;
+    --text: #e8eaf0; --text2: #8891a8; --text3: #555e76;
+    --danger: #ef4444; --glow: rgba(79,110,247,0.12);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family:'Noto Sans JP',sans-serif;
+    background:var(--bg); color:var(--text);
+    min-height:100vh; display:flex; align-items:center; justify-content:center;
+    position:relative; overflow:hidden;
+  }
+
+  /* Background effect */
+  body::before {
+    content:''; position:absolute; inset:0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(79,110,247,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 50%, rgba(124,58,237,0.06) 0%, transparent 60%);
+    pointer-events:none;
+  }
+
+  .login-wrap {
+    width:100%; max-width:400px; padding:24px;
+    position:relative; z-index:1;
+  }
+
+  .logo-area {
+    text-align:center; margin-bottom:40px;
+  }
+  .logo {
+    width:52px; height:52px;
+    background:linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius:14px;
+    display:inline-flex; align-items:center; justify-content:center;
+    font-family:'Syne',sans-serif; font-weight:800; font-size:18px; color:white;
+    box-shadow:0 0 32px rgba(79,110,247,0.4);
+    margin-bottom:16px;
+  }
+  .logo-title {
+    font-family:'Syne',sans-serif; font-size:24px; font-weight:800;
+    letter-spacing:-0.5px; margin-bottom:6px;
+  }
+  .logo-sub { font-size:13px; color:var(--text3); }
+
+  .card {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:16px; padding:32px;
+  }
+
+  .card-title {
+    font-family:'Syne',sans-serif; font-size:16px; font-weight:700;
+    margin-bottom:24px; text-align:center;
+  }
+
+  .form-group { margin-bottom:16px; }
+  .form-label { font-size:12px; color:var(--text2); font-weight:600; margin-bottom:6px; display:block; }
+  .form-input {
+    width:100%; background:var(--surface2); border:1px solid var(--border);
+    border-radius:10px; padding:11px 14px; color:var(--text);
+    font-size:14px; font-family:inherit; outline:none; transition:border-color 0.2s;
+  }
+  .form-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(79,110,247,0.1); }
+  .form-input::placeholder { color:var(--text3); }
+
+  .btn {
+    width:100%; padding:12px; border-radius:10px; font-size:14px; font-weight:700;
+    cursor:pointer; border:none; transition:all 0.2s; font-family:inherit;
+    margin-top:8px;
+  }
+  .btn-primary {
+    background:var(--accent); color:white;
+    box-shadow:0 0 24px rgba(79,110,247,0.3);
+  }
+  .btn-primary:hover { background:#6b83f8; transform:translateY(-1px); }
+  .btn-primary:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+
+  .divider {
+    display:flex; align-items:center; gap:12px;
+    margin:20px 0; color:var(--text3); font-size:12px;
+  }
+  .divider::before, .divider::after {
+    content:''; flex:1; height:1px; background:var(--border);
+  }
+
+  .toggle-mode {
+    text-align:center; margin-top:20px; font-size:13px; color:var(--text3);
+  }
+  .toggle-link {
+    color:var(--accent); cursor:pointer; font-weight:600;
+    text-decoration:none;
+  }
+  .toggle-link:hover { text-decoration:underline; }
+
+  .error-msg {
+    background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.25);
+    border-radius:8px; padding:10px 14px; font-size:13px; color:#f87171;
+    margin-bottom:16px; display:none;
+  }
+  .success-msg {
+    background:rgba(5,150,105,0.1); border:1px solid rgba(5,150,105,0.25);
+    border-radius:8px; padding:10px 14px; font-size:13px; color:#34d399;
+    margin-bottom:16px; display:none;
+  }
+
+  .spinner {
+    width:16px; height:16px; border:2px solid rgba(255,255,255,0.3);
+    border-top-color:white; border-radius:50%;
+    animation:spin 0.8s linear infinite; display:inline-block; margin-right:8px;
+    vertical-align:middle;
+  }
+  @keyframes spin { to{transform:rotate(360deg);} }
+
+  .footer-note {
+    text-align:center; margin-top:24px; font-size:11px; color:var(--text3);
+  }
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="logo-area">
+    <div class="logo">CO</div>
+    <div class="logo-title">CorpOS</div>
+    <div class="logo-sub">コーポレート管理プラットフォーム</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title" id="card-title">ログイン</div>
+
+    <div class="error-msg" id="error-msg"></div>
+    <div class="success-msg" id="success-msg"></div>
+
+    <!-- LOGIN FORM -->
+    <div id="login-form">
+      <div class="form-group">
+        <label class="form-label">メールアドレス</label>
+        <input class="form-input" type="email" id="login-email" placeholder="your@company.com" autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">パスワード</label>
+        <input class="form-input" type="password" id="login-password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary" id="login-btn" onclick="handleLogin()">ログイン</button>
+
+      <div class="toggle-mode">
+        アカウントをお持ちでない方は
+        <span class="toggle-link" onclick="showSignup()">新規登録</span>
+      </div>
+
+      <div class="divider">または</div>
+
+      <div style="text-align:center">
+        <span class="toggle-link" onclick="showReset()">パスワードを忘れた方</span>
+      </div>
+    </div>
+
+    <!-- SIGNUP FORM -->
+    <div id="signup-form" style="display:none">
+      <div class="form-group">
+        <label class="form-label">メールアドレス</label>
+        <input class="form-input" type="email" id="signup-email" placeholder="your@company.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">パスワード（8文字以上）</label>
+        <input class="form-input" type="password" id="signup-password" placeholder="••••••••">
+      </div>
+      <div class="form-group">
+        <label class="form-label">パスワード（確認）</label>
+        <input class="form-input" type="password" id="signup-password2" placeholder="••••••••">
+      </div>
+      <button class="btn btn-primary" id="signup-btn" onclick="handleSignup()">アカウント作成</button>
+
+      <div class="toggle-mode">
+        すでにアカウントをお持ちの方は
+        <span class="toggle-link" onclick="showLogin()">ログイン</span>
+      </div>
+    </div>
+
+    <!-- RESET FORM -->
+    <div id="reset-form" style="display:none">
+      <div class="form-group">
+        <label class="form-label">登録済みのメールアドレス</label>
+        <input class="form-input" type="email" id="reset-email" placeholder="your@company.com">
+      </div>
+      <button class="btn btn-primary" id="reset-btn" onclick="handleReset()">リセットメールを送信</button>
+
+      <div class="toggle-mode">
+        <span class="toggle-link" onclick="showLogin()">← ログインに戻る</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    © 2025 CorpOS — Powered by Bakeru
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://vcigwtccitqyaxrnihtf.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjaWd3dGNjaXRxeWF4cm5paHRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMDA4OTIsImV4cCI6MjA4ODc3Njg5Mn0.KpSxID0BXyDg9xgscKDWk2Y4OA8VSq_JpHdmVkFqXT8';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ログイン済みなら即リダイレクト
+db.auth.getSession().then(({ data }) => {
+  if (data.session) {
+    window.location.href = 'contracts.html';
+  }
+});
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg; el.style.display = 'block';
+  document.getElementById('success-msg').style.display = 'none';
+}
+function showSuccess(msg) {
+  const el = document.getElementById('success-msg');
+  el.textContent = msg; el.style.display = 'block';
+  document.getElementById('error-msg').style.display = 'none';
+}
+function clearMessages() {
+  document.getElementById('error-msg').style.display = 'none';
+  document.getElementById('success-msg').style.display = 'none';
+}
+
+function setLoading(btnId, loading) {
+  const btn = document.getElementById(btnId);
+  if (loading) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>処理中...';
+  } else {
+    btn.disabled = false;
+  }
+}
+
+function showLogin() {
+  document.getElementById('login-form').style.display = 'block';
+  document.getElementById('signup-form').style.display = 'none';
+  document.getElementById('reset-form').style.display = 'none';
+  document.getElementById('card-title').textContent = 'ログイン';
+  document.getElementById('login-btn').innerHTML = 'ログイン';
+  clearMessages();
+}
+function showSignup() {
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('signup-form').style.display = 'block';
+  document.getElementById('reset-form').style.display = 'none';
+  document.getElementById('card-title').textContent = 'アカウント作成';
+  clearMessages();
+}
+function showReset() {
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('signup-form').style.display = 'none';
+  document.getElementById('reset-form').style.display = 'block';
+  document.getElementById('card-title').textContent = 'パスワードリセット';
+  clearMessages();
+}
+
+async function handleLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  if (!email || !password) { showError('メールアドレスとパスワードを入力してください'); return; }
+  setLoading('login-btn', true);
+  const { error } = await db.auth.signInWithPassword({ email, password });
+  if (error) {
+    showError('メールアドレスまたはパスワードが正しくありません');
+    setLoading('login-btn', false);
+    document.getElementById('login-btn').innerHTML = 'ログイン';
+  } else {
+    window.location.href = 'contracts.html';
+  }
+}
+
+async function handleSignup() {
+  const email = document.getElementById('signup-email').value.trim();
+  const password = document.getElementById('signup-password').value;
+  const password2 = document.getElementById('signup-password2').value;
+  if (!email || !password) { showError('全項目を入力してください'); return; }
+  if (password.length < 8) { showError('パスワードは8文字以上にしてください'); return; }
+  if (password !== password2) { showError('パスワードが一致しません'); return; }
+  setLoading('signup-btn', true);
+  const { error } = await db.auth.signUp({ email, password });
+  if (error) {
+    showError('登録に失敗しました: ' + error.message);
+    setLoading('signup-btn', false);
+    document.getElementById('signup-btn').innerHTML = 'アカウント作成';
+  } else {
+    showSuccess('確認メールを送信しました。メールのリンクをクリックして登録を完了してください。');
+    setLoading('signup-btn', false);
+    document.getElementById('signup-btn').innerHTML = 'アカウント作成';
+  }
+}
+
+async function handleReset() {
+  const email = document.getElementById('reset-email').value.trim();
+  if (!email) { showError('メールアドレスを入力してください'); return; }
+  setLoading('reset-btn', true);
+  const { error } = await db.auth.resetPasswordForEmail(email, {
+    redirectTo: 'https://ryoji-bake.github.io/corpos-bake/contracts.html'
+  });
+  if (error) {
+    showError('送信に失敗しました');
+  } else {
+    showSuccess('パスワードリセットメールを送信しました');
+  }
+  setLoading('reset-btn', false);
+  document.getElementById('reset-btn').innerHTML = 'リセットメールを送信';
+}
+
+// Enterキー対応
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const loginForm = document.getElementById('login-form');
+    const signupForm = document.getElementById('signup-form');
+    const resetForm = document.getElementById('reset-form');
+    if (loginForm.style.display !== 'none') handleLogin();
+    else if (signupForm.style.display !== 'none') handleSignup();
+    else if (resetForm.style.display !== 'none') handleReset();
+  }
+});
+</script>
+</body>
+</html>

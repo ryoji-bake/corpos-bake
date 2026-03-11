@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CorpOS — 契約・法務管理</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0b0f; --surface: #111318; --surface2: #181b22; --surface3: #1e2230;
+    --border: #252a38; --accent: #4f6ef7; --accent2: #7c3aed; --accent3: #059669;
+    --accent4: #d97706; --text: #e8eaf0; --text2: #8891a8; --text3: #555e76;
+    --danger: #ef4444; --glow: rgba(79,110,247,0.12);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Noto Sans JP',sans-serif; background:var(--bg); color:var(--text); min-height:100vh; display:flex; overflow:hidden; }
+
+  /* AUTH LOADING */
+  #auth-loading {
+    position:fixed; inset:0; background:var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    z-index:999; flex-direction:column; gap:16px;
+  }
+  .auth-logo {
+    width:48px; height:48px;
+    background:linear-gradient(135deg,var(--accent),var(--accent2));
+    border-radius:12px; display:flex; align-items:center; justify-content:center;
+    font-family:'Syne',sans-serif; font-weight:800; font-size:16px; color:white;
+    box-shadow:0 0 24px rgba(79,110,247,0.4);
+  }
+  .auth-spinner {
+    width:24px; height:24px; border:2px solid var(--border);
+    border-top-color:var(--accent); border-radius:50%;
+    animation:spin 0.8s linear infinite;
+  }
+  @keyframes spin { to{transform:rotate(360deg);} }
+
+  .sidebar { width:64px; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:20px 0; gap:8px; flex-shrink:0; }
+  .logo { width:40px; height:40px; background:linear-gradient(135deg,var(--accent),var(--accent2)); border-radius:10px; display:flex; align-items:center; justify-content:center; font-family:'Syne',sans-serif; font-weight:800; font-size:14px; color:white; margin-bottom:16px; box-shadow:0 0 20px rgba(79,110,247,0.4); }
+  .nav-icon { width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.2s; color:var(--text3); font-size:18px; }
+  .nav-icon:hover { background:var(--surface3); color:var(--text); }
+  .nav-icon.active { background:var(--glow); color:var(--accent); }
+  .nav-divider { width:32px; height:1px; background:var(--border); margin:8px 0; }
+  .sidebar-bottom { margin-top:auto; display:flex; flex-direction:column; align-items:center; gap:8px; }
+  .avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#4f6ef7,#7c3aed); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:white; border:2px solid var(--border); cursor:pointer; position:relative; }
+
+  /* USER MENU */
+  .user-menu {
+    position:absolute; bottom:50px; left:8px;
+    background:var(--surface); border:1px solid var(--border); border-radius:10px;
+    padding:8px; min-width:180px; z-index:50;
+    box-shadow:0 8px 32px rgba(0,0,0,0.4);
+    display:none;
+  }
+  .user-menu.open { display:block; }
+  .user-email { font-size:11px; color:var(--text3); padding:6px 10px; border-bottom:1px solid var(--border); margin-bottom:4px; word-break:break-all; }
+  .user-menu-item { padding:8px 10px; border-radius:6px; font-size:12px; cursor:pointer; color:var(--text2); transition:all 0.15s; }
+  .user-menu-item:hover { background:var(--surface3); color:var(--text); }
+  .user-menu-item.danger { color:#f87171; }
+  .user-menu-item.danger:hover { background:rgba(239,68,68,0.1); }
+
+  .main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+  .topbar { height:56px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 24px; gap:16px; flex-shrink:0; }
+  .breadcrumb { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .breadcrumb .sep { color:var(--text3); }
+  .breadcrumb .current { color:var(--text); font-weight:600; font-family:'Syne',sans-serif; }
+  .breadcrumb a { color:var(--text3); text-decoration:none; }
+  .topbar-right { margin-left:auto; display:flex; align-items:center; gap:10px; }
+
+  .btn { padding:7px 14px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:none; transition:all 0.2s; font-family:inherit; }
+  .btn-primary { background:var(--accent); color:white; box-shadow:0 0 16px rgba(79,110,247,0.25); }
+  .btn-primary:hover { background:#6b83f8; }
+  .btn-ghost { background:transparent; color:var(--text2); border:1px solid var(--border); }
+  .btn-ghost:hover { background:var(--surface3); color:var(--text); }
+  .btn-danger { background:rgba(239,68,68,0.1); color:#f87171; border:1px solid rgba(239,68,68,0.2); }
+  .btn-danger:hover { background:rgba(239,68,68,0.2); }
+  .btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+  .body-layout { flex:1; display:flex; overflow:hidden; }
+
+  .list-panel { width:300px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; background:var(--surface); }
+  .list-header { padding:14px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; }
+  .list-title { font-family:'Syne',sans-serif; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:space-between; }
+  .count-badge { background:var(--surface3); color:var(--text2); font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; }
+  .search-input { display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:7px 12px; }
+  .search-input input { background:none; border:none; outline:none; color:var(--text); font-size:13px; font-family:inherit; width:100%; }
+  .search-input input::placeholder { color:var(--text3); }
+  .filter-tabs { display:flex; gap:3px; padding:8px 14px; border-bottom:1px solid var(--border); flex-shrink:0; flex-wrap:wrap; }
+  .filter-tab { padding:3px 9px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; color:var(--text3); transition:all 0.15s; }
+  .filter-tab:hover { color:var(--text2); background:var(--surface3); }
+  .filter-tab.active { background:var(--glow); color:var(--accent); }
+  .list-scroll { flex:1; overflow-y:auto; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+
+  .contract-item { padding:12px 14px; border-bottom:1px solid rgba(37,42,56,0.6); cursor:pointer; transition:background 0.15s; display:flex; gap:10px; align-items:flex-start; }
+  .contract-item:hover { background:var(--surface2); }
+  .contract-item.selected { background:rgba(79,110,247,0.08); border-left:2px solid var(--accent); padding-left:12px; }
+  .contract-item.child { padding-left:28px; border-left:2px solid var(--border); }
+  .contract-item.child.selected { border-left-color:var(--accent); }
+  .ci-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0; }
+  .ci-body { flex:1; min-width:0; }
+  .ci-name { font-size:12px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ci-partner { font-size:11px; color:var(--text3); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ci-meta { display:flex; align-items:center; gap:5px; margin-top:5px; }
+  .ci-type { font-size:10px; color:var(--text3); background:var(--surface3); padding:1px 6px; border-radius:4px; }
+
+  .status-pill { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; border-radius:20px; font-size:10px; font-weight:600; }
+  .status-pill::before { content:''; width:4px; height:4px; border-radius:50%; background:currentColor; }
+  .pill-green { background:rgba(5,150,105,0.12); color:#34d399; }
+  .pill-blue { background:rgba(79,110,247,0.12); color:#818cf8; }
+  .pill-orange { background:rgba(217,119,6,0.12); color:#fbbf24; }
+  .pill-red { background:rgba(239,68,68,0.12); color:#f87171; }
+  .pill-gray { background:rgba(85,94,118,0.15); color:var(--text2); }
+  .pill-purple { background:rgba(124,58,237,0.12); color:#a78bfa; }
+  .ci-date { font-size:10px; color:var(--text3); margin-left:auto; white-space:nowrap; }
+  .ci-date.urgent { color:var(--accent4); font-weight:600; }
+  .ci-date.expired { color:var(--danger); font-weight:600; }
+
+  .detail-panel { flex:1; overflow-y:auto; padding:24px 28px; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+  .empty-state { display:flex; flex-direction:column; align-items:center; justify-content:center; height:100%; gap:12px; color:var(--text3); }
+  .empty-state .icon { font-size:48px; opacity:0.4; }
+
+  .reminder-card { border-radius:12px; padding:14px 18px; display:flex; align-items:center; gap:14px; margin-bottom:20px; }
+  .reminder-orange { background:rgba(217,119,6,0.08); border:1px solid rgba(217,119,6,0.25); }
+  .reminder-red { background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); }
+  .reminder-title { font-size:13px; font-weight:600; margin-bottom:2px; }
+  .reminder-desc { font-size:12px; color:var(--text2); }
+
+  .detail-hero { display:flex; align-items:flex-start; gap:16px; margin-bottom:20px; }
+  .detail-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:22px; background:rgba(124,58,237,0.12); flex-shrink:0; border:1px solid rgba(124,58,237,0.2); }
+  .detail-title { font-family:'Syne',sans-serif; font-size:18px; font-weight:800; letter-spacing:-0.5px; margin-bottom:5px; }
+  .detail-sub { font-size:12px; color:var(--text2); display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .detail-actions { margin-left:auto; display:flex; gap:8px; align-items:flex-start; flex-shrink:0; }
+
+  .info-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px; }
+  .info-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px; }
+  .info-label { font-size:10px; color:var(--text3); font-weight:500; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:4px; }
+  .info-val { font-size:13px; font-weight:600; }
+  .info-val.warning { color:var(--accent4); }
+  .info-val.danger { color:var(--danger); }
+  .info-val.accent { color:var(--accent); }
+
+  .section { margin-bottom:22px; }
+  .section-title { font-family:'Syne',sans-serif; font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.8px; margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+  .section-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+  .upload-zone { border:2px dashed var(--border); border-radius:12px; padding:28px; text-align:center; cursor:pointer; transition:all 0.2s; position:relative; }
+  .upload-zone:hover, .upload-zone.dragover { border-color:var(--accent); background:var(--glow); }
+  .upload-zone input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; }
+  .upload-zone .icon { font-size:32px; margin-bottom:8px; }
+  .upload-zone p { font-size:13px; color:var(--text2); }
+
+  .pdf-viewer { background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .pdf-header { padding:12px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; }
+  .pdf-filename { font-size:13px; font-weight:500; flex:1; }
+  .pdf-embed { width:100%; height:400px; border:none; background:#fff; }
+
+  .children-list { display:flex; flex-direction:column; gap:8px; }
+  .child-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 16px; display:flex; align-items:center; gap:12px; cursor:pointer; transition:border-color 0.15s; }
+  .child-card:hover { border-color:var(--accent); }
+  .child-card-name { font-size:13px; font-weight:500; }
+  .child-card-meta { font-size:11px; color:var(--text3); margin-top:2px; }
+  .add-child-btn { border:1px dashed var(--border); border-radius:10px; padding:10px 16px; display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--text3); font-size:12px; transition:all 0.15s; background:transparent; font-family:inherit; width:100%; }
+  .add-child-btn:hover { border-color:var(--accent); color:var(--accent); background:var(--glow); }
+
+  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:100; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+  .modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; width:560px; max-height:88vh; overflow-y:auto; padding:28px; scrollbar-width:thin; animation:modalIn 0.2s ease; }
+  @keyframes modalIn { from{opacity:0;transform:scale(0.97) translateY(8px);}to{opacity:1;transform:none;} }
+  .modal-title { font-family:'Syne',sans-serif; font-size:17px; font-weight:800; margin-bottom:20px; }
+
+  .modal-upload-zone { border:2px dashed var(--border); border-radius:10px; padding:20px; text-align:center; cursor:pointer; transition:all 0.2s; position:relative; margin-bottom:16px; }
+  .modal-upload-zone:hover { border-color:var(--accent); background:var(--glow); }
+  .modal-upload-zone input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; }
+
+  .form-group { margin-bottom:14px; }
+  .form-label { font-size:12px; color:var(--text2); font-weight:600; margin-bottom:5px; display:block; }
+  .form-input { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text); font-size:13px; font-family:inherit; outline:none; transition:border-color 0.2s; }
+  .form-input:focus { border-color:var(--accent); }
+  .form-select { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text); font-size:13px; font-family:inherit; outline:none; cursor:pointer; }
+  .form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .modal-footer { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; padding-top:14px; border-top:1px solid var(--border); }
+
+  .toast { position:fixed; bottom:24px; right:24px; z-index:200; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 18px; font-size:13px; display:flex; align-items:center; gap:10px; box-shadow:0 8px 32px rgba(0,0,0,0.4); animation:toastIn 0.3s ease; }
+  @keyframes toastIn { from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;} }
+  .toast.success { border-color:rgba(5,150,105,0.3); }
+  .toast.error { border-color:rgba(239,68,68,0.3); }
+
+  .loading { display:flex; align-items:center; justify-content:center; height:100%; gap:10px; color:var(--text3); font-size:13px; }
+  .spinner { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; }
+</style>
+</head>
+<body>
+
+<!-- AUTH LOADING -->
+<div id="auth-loading">
+  <div class="auth-logo">CO</div>
+  <div class="auth-spinner"></div>
+</div>
+
+<nav class="sidebar">
+  <div class="logo">CO</div>
+  <div class="nav-icon">⊞</div>
+  <div class="nav-icon">👤</div>
+  <div class="nav-icon">💴</div>
+  <div class="nav-icon">📋</div>
+  <div class="nav-icon active">📄</div>
+  <div class="nav-divider"></div>
+  <div class="nav-icon">⚙</div>
+  <div class="sidebar-bottom">
+    <div class="avatar" id="user-avatar" onclick="toggleUserMenu()">
+      <div class="user-menu" id="user-menu">
+        <div class="user-email" id="user-email-display">—</div>
+        <div class="user-menu-item danger" onclick="handleLogout()">🚪 ログアウト</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="main">
+  <header class="topbar">
+    <div class="breadcrumb">
+      <a>CorpOS</a><span class="sep">›</span>
+      <span class="current">契約・法務管理</span>
+    </div>
+    <div class="topbar-right">
+      <button class="btn btn-ghost" onclick="exportCSV()">📤 CSV出力</button>
+      <button class="btn btn-primary" onclick="openModal()">＋ 新規契約</button>
+    </div>
+  </header>
+
+  <div class="body-layout">
+    <div class="list-panel">
+      <div class="list-header">
+        <div class="list-title">契約一覧 <span class="count-badge" id="count-badge">—</span></div>
+        <div class="search-input">
+          <span style="color:var(--text3)">🔍</span>
+          <input type="text" id="search-input" placeholder="検索..." oninput="renderList()">
+        </div>
+      </div>
+      <div class="filter-tabs">
+        <div class="filter-tab active" onclick="setFilter('all',this)">すべて</div>
+        <div class="filter-tab" onclick="setFilter('有効',this)">有効</div>
+        <div class="filter-tab" onclick="setFilter('更新要',this)">更新要</div>
+        <div class="filter-tab" onclick="setFilter('審査中',this)">審査中</div>
+        <div class="filter-tab" onclick="setFilter('期限切れ',this)">期限切れ</div>
+      </div>
+      <div class="list-scroll" id="contract-list">
+        <div class="loading"><div class="spinner"></div>読み込み中...</div>
+      </div>
+    </div>
+
+    <div class="detail-panel" id="detail-panel">
+      <div class="empty-state">
+        <div class="icon">📄</div>
+        <p>契約を選択してください</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal" style="display:none" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">＋ 新規契約を追加</div>
+    <div class="form-group">
+      <label class="form-label">契約種別</label>
+      <select class="form-select" id="f-type">
+        <option>基本契約</option><option>個別契約</option><option>覚書</option>
+        <option>更新契約</option><option>追加契約</option><option>NDA（秘密保持）</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">親契約（紐づけ先）</label>
+      <select class="form-select" id="f-parent">
+        <option value="">なし（独立した契約）</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">契約名 *</label>
+      <input class="form-input" id="f-name" placeholder="例：業務委託契約">
+    </div>
+    <div class="form-group">
+      <label class="form-label">取引先 *</label>
+      <input class="form-input" id="f-partner" placeholder="例：株式会社〇〇">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">ステータス</label>
+        <select class="form-select" id="f-status">
+          <option>有効</option><option>更新要</option><option>審査中</option><option>期限切れ</option><option>ドラフト</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">契約金額（円）</label>
+        <input class="form-input" id="f-amount" type="number" placeholder="例：1200000">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">契約開始日</label>
+        <input class="form-input" id="f-start" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">契約終了日</label>
+        <input class="form-input" id="f-end" type="date">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">担当者</label>
+        <input class="form-input" id="f-assignee" placeholder="例：田中 雄介">
+      </div>
+      <div class="form-group">
+        <label class="form-label">契約ID</label>
+        <input class="form-input" id="f-contract-id" placeholder="例：CTR-2025-0001">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">メモ・備考</label>
+      <input class="form-input" id="f-notes" placeholder="自由記入">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-primary" id="save-btn" onclick="saveContract()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://vcigwtccitqyaxrnihtf.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZjaWd3dGNjaXRxeWF4cm5paHRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyMDA4OTIsImV4cCI6MjA4ODc3Njg5Mn0.KpSxID0BXyDg9xgscKDWk2Y4OA8VSq_JpHdmVkFqXT8';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let allContracts = [];
+let selectedId = null;
+let currentFilter = 'all';
+let editingId = null;
+let currentUser = null;
+
+// ── AUTH CHECK ──
+async function initAuth() {
+  const { data: { session } } = await db.auth.getSession();
+  if (!session) {
+    window.location.href = 'index.html';
+    return;
+  }
+  currentUser = session.user;
+  document.getElementById('user-email-display').textContent = currentUser.email;
+  const initials = currentUser.email.slice(0, 2).toUpperCase();
+  document.getElementById('user-avatar').childNodes[0].textContent = initials;
+  document.getElementById('auth-loading').style.display = 'none';
+  await loadContracts();
+}
+
+async function handleLogout() {
+  await db.auth.signOut();
+  window.location.href = 'index.html';
+}
+
+function toggleUserMenu() {
+  document.getElementById('user-menu').classList.toggle('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#user-avatar')) {
+    document.getElementById('user-menu').classList.remove('open');
+  }
+});
+
+// ── DATA ──
+async function loadContracts() {
+  const { data, error } = await db.from('contracts').select('*').order('created_at', { ascending: false });
+  if (error) { showToast('読み込み失敗', 'error'); return; }
+  allContracts = data || [];
+  renderList();
+  if (selectedId) {
+    const c = allContracts.find(x => x.id === selectedId);
+    if (c) renderDetail(c);
+  }
+}
+
+function renderList() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  let filtered = allContracts.filter(c => {
+    const mf = currentFilter === 'all' || c.status === currentFilter;
+    const ms = c.name.toLowerCase().includes(q) || (c.partner||'').toLowerCase().includes(q);
+    return mf && ms;
+  });
+  document.getElementById('count-badge').textContent = filtered.length + '件';
+
+  if (filtered.length === 0) {
+    document.getElementById('contract-list').innerHTML = '<div style="padding:28px;text-align:center;color:var(--text3);font-size:13px">該当なし</div>';
+    return;
+  }
+
+  const shown = new Set();
+  let html = '';
+  filtered.forEach(c => {
+    if (shown.has(c.id)) return;
+    if (!c.parent_id) {
+      html += contractItemHTML(c, false);
+      shown.add(c.id);
+      allContracts.filter(x => x.parent_id === c.id && filtered.find(f => f.id === x.id)).forEach(ch => {
+        html += contractItemHTML(ch, true); shown.add(ch.id);
+      });
+    }
+  });
+  filtered.forEach(c => { if (!shown.has(c.id)) { html += contractItemHTML(c, true); shown.add(c.id); } });
+  document.getElementById('contract-list').innerHTML = html;
+}
+
+function contractItemHTML(c, isChild) {
+  const daysLeft = daysUntil(c.end_date);
+  const dateLabel = c.end_date ? formatDateShort(c.end_date) : '—';
+  const dateClass = daysLeft !== null && daysLeft < 0 ? 'expired' : daysLeft !== null && daysLeft <= 30 ? 'urgent' : '';
+  return `
+  <div class="contract-item ${isChild?'child':''} ${c.id===selectedId?'selected':''}" onclick="selectContract('${c.id}')">
+    ${isChild?'<span style="color:var(--text3);font-size:11px;margin-right:2px">└</span>':''}
+    <div class="ci-icon" style="background:${statusBg(c.status)}">${statusIcon(c.status)}</div>
+    <div class="ci-body">
+      <div class="ci-name">${c.name}</div>
+      <div class="ci-partner">${c.partner||'—'}</div>
+      <div class="ci-meta">
+        <span class="ci-type">${c.contract_type||'基本契約'}</span>
+        <span class="status-pill ${statusPill(c.status)}">${c.status}</span>
+        <span class="ci-date ${dateClass}">${dateLabel}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function setFilter(val, el) {
+  currentFilter = val;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderList();
+}
+
+function selectContract(id) {
+  selectedId = id;
+  renderList();
+  const c = allContracts.find(x => x.id === id);
+  if (c) renderDetail(c);
+}
+
+function renderDetail(c) {
+  const daysLeft = daysUntil(c.end_date);
+  const isUrgent = daysLeft !== null && daysLeft >= 0 && daysLeft <= 30;
+  const isExpired = daysLeft !== null && daysLeft < 0;
+  const children = allContracts.filter(x => x.parent_id === c.id);
+  const parent = c.parent_id ? allContracts.find(x => x.id === c.parent_id) : null;
+
+  document.getElementById('detail-panel').innerHTML = `
+    ${isUrgent?`<div class="reminder-card reminder-orange"><div style="font-size:20px">⚠️</div><div><div class="reminder-title" style="color:var(--accent4)">更新期限まで${daysLeft}日</div><div class="reminder-desc">${formatDate(c.end_date)}までに更新してください</div></div></div>`:''}
+    ${isExpired?`<div class="reminder-card reminder-red"><div style="font-size:20px">🚨</div><div><div class="reminder-title" style="color:var(--danger)">この契約は期限切れです</div><div class="reminder-desc">至急、更新または終了処理を行ってください</div></div></div>`:''}
+
+    <div class="detail-hero">
+      <div class="detail-icon">${statusIcon(c.status)}</div>
+      <div style="flex:1">
+        <div class="detail-title">${c.name}</div>
+        <div class="detail-sub">
+          <span class="status-pill ${statusPill(c.status)}" style="font-size:11px;padding:3px 10px">${c.status}</span>
+          <span style="background:var(--surface3);padding:2px 8px;border-radius:5px;font-size:11px">${c.contract_type||'基本契約'}</span>
+          ${c.partner||''}
+          ${c.contract_id?`<span style="color:var(--border)">·</span>${c.contract_id}`:''}
+        </div>
+        ${parent?`<div style="margin-top:8px;font-size:12px;color:var(--text3)">📎 親契約: <span style="color:var(--accent);cursor:pointer" onclick="selectContract('${parent.id}')">${parent.name}</span></div>`:''}
+      </div>
+      <div class="detail-actions">
+        <button class="btn btn-ghost" onclick="openEditModal('${c.id}')">✏️ 編集</button>
+        <button class="btn btn-danger" onclick="deleteContract('${c.id}')">🗑</button>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-card"><div class="info-label">契約開始日</div><div class="info-val">${c.start_date?formatDate(c.start_date):'—'}</div></div>
+      <div class="info-card"><div class="info-label">契約終了日</div><div class="info-val ${isExpired?'danger':isUrgent?'warning':''}">${c.end_date?formatDate(c.end_date):'—'}</div></div>
+      <div class="info-card"><div class="info-label">残り日数</div><div class="info-val ${isExpired?'danger':isUrgent?'warning':''}">${daysLeft===null?'—':isExpired?`${Math.abs(daysLeft)}日超過`:`${daysLeft}日`}</div></div>
+      <div class="info-card"><div class="info-label">契約金額</div><div class="info-val">${c.amount?'¥'+c.amount.toLocaleString():'—'}</div></div>
+      <div class="info-card"><div class="info-label">自動更新</div><div class="info-val">${c.auto_renewal?'あり':'なし'}</div></div>
+      <div class="info-card"><div class="info-label">担当者</div><div class="info-val accent">${c.assignee||'—'}</div></div>
+    </div>
+
+    ${c.notes?`<div class="section"><div class="section-title">メモ・備考</div><div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--text2);line-height:1.7">${c.notes}</div></div>`:''}
+
+    <div class="section">
+      <div class="section-title">契約書PDF</div>
+      ${c.pdf_url?`
+        <div class="pdf-viewer">
+          <div class="pdf-header">
+            <span style="font-size:18px">📕</span>
+            <span class="pdf-filename">${c.pdf_path?c.pdf_path.split('/').pop():'契約書.pdf'}</span>
+            <a href="${c.pdf_url}" target="_blank" class="btn btn-ghost" style="font-size:12px;padding:5px 10px">↗ 開く</a>
+            <button class="btn btn-danger" style="font-size:12px;padding:5px 10px" onclick="removePdf('${c.id}','${c.pdf_path}')">🗑</button>
+          </div>
+          <iframe class="pdf-embed" src="${c.pdf_url}"></iframe>
+        </div>`:`
+        <div class="upload-zone" ondragover="event.preventDefault();this.classList.add('dragover')" ondragleave="this.classList.remove('dragover')" ondrop="handleDetailDrop(event,'${c.id}')">
+          <input type="file" accept=".pdf" onchange="handleDetailPDF(event,'${c.id}')">
+          <div class="icon">📎</div>
+          <p>PDFをドラッグ＆ドロップ、またはクリックして選択</p>
+        </div>`}
+    </div>
+
+    <div class="section">
+      <div class="section-title">紐づく契約・覚書</div>
+      <div class="children-list">
+        ${children.map(ch=>`
+        <div class="child-card" onclick="selectContract('${ch.id}')">
+          <div style="font-size:18px">${statusIcon(ch.status)}</div>
+          <div style="flex:1">
+            <div class="child-card-name">${ch.name}</div>
+            <div class="child-card-meta">${ch.contract_type||'基本契約'} · ${ch.partner||'—'} · ${ch.end_date?formatDate(ch.end_date):'期限なし'}</div>
+          </div>
+          <span class="status-pill ${statusPill(ch.status)}">${ch.status}</span>
+        </div>`).join('')}
+        <button class="add-child-btn" onclick="openChildModal('${c.id}','${c.name}')">＋ 紐づく契約・覚書を追加</button>
+      </div>
+    </div>
+
+    <div style="font-size:11px;color:var(--text3);padding-top:8px">登録日時: ${new Date(c.created_at).toLocaleString('ja-JP')}</div>
+  `;
+}
+
+// ── PDF ──
+async function handleDetailDrop(e, contractId) {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (file && file.type === 'application/pdf') await uploadPdfForContract(file, contractId);
+}
+async function handleDetailPDF(e, contractId) {
+  const file = e.target.files[0];
+  if (file) await uploadPdfForContract(file, contractId);
+}
+async function uploadPdfForContract(file, contractId) {
+  showToast('PDFをアップロード中...', 'success');
+  const path = `${contractId}/${Date.now()}_${file.name}`;
+  const { error: upErr } = await db.storage.from('contracts-pdf').upload(path, file);
+  if (upErr) { showToast('アップロード失敗: ' + upErr.message, 'error'); return; }
+  const { data: urlData } = db.storage.from('contracts-pdf').getPublicUrl(path);
+  await db.from('contracts').update({ pdf_url: urlData.publicUrl, pdf_path: path }).eq('id', contractId);
+  showToast('PDFをアップロードしました ✓', 'success');
+  await loadContracts();
+}
+async function removePdf(contractId, pdfPath) {
+  if (!confirm('PDFを削除しますか？')) return;
+  await db.storage.from('contracts-pdf').remove([pdfPath]);
+  await db.from('contracts').update({ pdf_url: null, pdf_path: null }).eq('id', contractId);
+  showToast('PDFを削除しました', 'success');
+  await loadContracts();
+}
+
+// ── MODAL ──
+function openModal(parentId=null, parentName=null) {
+  editingId = null;
+  document.getElementById('modal-title').textContent = '＋ 新規契約を追加';
+  ['f-name','f-partner','f-assignee','f-contract-id','f-notes','f-amount'].forEach(id=>document.getElementById(id).value='');
+  ['f-start','f-end'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-status').value='有効';
+  document.getElementById('f-type').value=parentId?'個別契約':'基本契約';
+  populateParentSelect(parentId);
+  document.getElementById('modal').style.display='flex';
+}
+function openChildModal(parentId, parentName) {
+  openModal(parentId, parentName);
+  document.getElementById('modal-title').textContent=`＋ 紐づく契約を追加（${parentName}）`;
+}
+function openEditModal(id) {
+  const c = allContracts.find(x=>x.id===id);
+  if (!c) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent='✏️ 契約を編集';
+  document.getElementById('f-name').value=c.name||'';
+  document.getElementById('f-partner').value=c.partner||'';
+  document.getElementById('f-status').value=c.status||'有効';
+  document.getElementById('f-type').value=c.contract_type||'基本契約';
+  document.getElementById('f-amount').value=c.amount||'';
+  document.getElementById('f-start').value=c.start_date||'';
+  document.getElementById('f-end').value=c.end_date||'';
+  document.getElementById('f-assignee').value=c.assignee||'';
+  document.getElementById('f-contract-id').value=c.contract_id||'';
+  document.getElementById('f-notes').value=c.notes||'';
+  populateParentSelect(c.parent_id);
+  document.getElementById('modal').style.display='flex';
+}
+function populateParentSelect(selectedParentId=null) {
+  const sel = document.getElementById('f-parent');
+  sel.innerHTML='<option value="">なし（独立した契約）</option>';
+  allContracts.filter(c=>!c.parent_id&&c.id!==editingId).forEach(c=>{
+    const opt=document.createElement('option');
+    opt.value=c.id; opt.textContent=c.name;
+    if(c.id===selectedParentId) opt.selected=true;
+    sel.appendChild(opt);
+  });
+}
+function closeModal() { document.getElementById('modal').style.display='none'; }
+function closeModalOutside(e) { if(e.target.id==='modal') closeModal(); }
+
+async function saveContract() {
+  const name=document.getElementById('f-name').value.trim();
+  const partner=document.getElementById('f-partner').value.trim();
+  if(!name||!partner){showToast('契約名と取引先は必須です','error');return;}
+  const btn=document.getElementById('save-btn');
+  btn.disabled=true; btn.textContent='保存中...';
+  const parentVal=document.getElementById('f-parent').value;
+  const payload={
+    name,partner,
+    contract_type:document.getElementById('f-type').value,
+    status:document.getElementById('f-status').value,
+    amount:document.getElementById('f-amount').value?parseInt(document.getElementById('f-amount').value):null,
+    start_date:document.getElementById('f-start').value||null,
+    end_date:document.getElementById('f-end').value||null,
+    assignee:document.getElementById('f-assignee').value.trim()||null,
+    contract_id:document.getElementById('f-contract-id').value.trim()||null,
+    notes:document.getElementById('f-notes').value.trim()||null,
+    parent_id:parentVal||null,
+  };
+  let error;
+  if(editingId){({error}=await db.from('contracts').update(payload).eq('id',editingId));}
+  else{({error}=await db.from('contracts').insert(payload));}
+  if(error){showToast('保存失敗: '+error.message,'error');btn.disabled=false;btn.textContent='保存する';return;}
+  showToast(editingId?'契約を更新しました ✓':'契約を追加しました ✓','success');
+  closeModal(); btn.disabled=false; btn.textContent='保存する';
+  await loadContracts();
+}
+
+async function deleteContract(id) {
+  if(!confirm('この契約を削除しますか？'))return;
+  const c=allContracts.find(x=>x.id===id);
+  if(c?.pdf_path) await db.storage.from('contracts-pdf').remove([c.pdf_path]);
+  await db.from('contracts').delete().eq('id',id);
+  showToast('削除しました','success');
+  selectedId=null;
+  document.getElementById('detail-panel').innerHTML='<div class="empty-state"><div class="icon">📄</div><p>契約を選択してください</p></div>';
+  await loadContracts();
+}
+
+function exportCSV() {
+  const headers=['契約名','種別','取引先','ステータス','金額','開始日','終了日','担当者','契約ID'];
+  const rows=allContracts.map(c=>[c.name,c.contract_type||'',c.partner,c.status,c.amount||'',c.start_date||'',c.end_date||'',c.assignee||'',c.contract_id||'']);
+  const csv=[headers,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`contracts_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+  showToast('CSV出力しました','success');
+}
+
+function daysUntil(d){if(!d)return null;return Math.ceil((new Date(d)-new Date())/(1000*60*60*24));}
+function formatDate(s){if(!s)return'—';const d=new Date(s);return`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;}
+function formatDateShort(s){if(!s)return'—';const d=new Date(s);return`${d.getMonth()+1}/${d.getDate()}`;}
+function statusIcon(s){return{'有効':'✅','更新要':'⚠️','審査中':'🔍','期限切れ':'❌','ドラフト':'📝'}[s]||'📄';}
+function statusBg(s){return{'有効':'rgba(5,150,105,0.1)','更新要':'rgba(217,119,6,0.1)','審査中':'rgba(79,110,247,0.1)','期限切れ':'rgba(239,68,68,0.1)','ドラフト':'rgba(124,58,237,0.1)'}[s]||'rgba(85,94,118,0.1)';}
+function statusPill(s){return{'有効':'pill-green','更新要':'pill-orange','審査中':'pill-blue','期限切れ':'pill-red','ドラフト':'pill-purple'}[s]||'pill-gray';}
+
+function showToast(msg,type='success'){
+  const t=document.createElement('div');t.className=`toast ${type}`;
+  t.innerHTML=`<span>${type==='success'?'✅':'❌'}</span> ${msg}`;
+  document.body.appendChild(t);setTimeout(()=>t.remove(),3500);
+}
+
+initAuth();
+</script>
+</body>
+</html>
