@@ -287,7 +287,7 @@
       <div class="form-group">
         <label class="form-label">ステータス</label>
         <select class="form-select" id="f-status">
-          <option>有効</option><option>更新要</option><option>審査中</option><option>期限切れ</option><option>ドラフト</option>
+          <option>有効</option><option>更新要</option><option>期限切れ</option>
         </select>
       </div>
       <div class="form-group">
@@ -372,6 +372,7 @@ async function loadContracts() {
   const { data, error } = await db.from('contracts').select('*').order('created_at', { ascending: false });
   if (error) { showToast('読み込み失敗', 'error'); return; }
   allContracts = data || [];
+  await autoUpdateStatuses(allContracts);
   renderList();
   if (selectedId) {
     const c = allContracts.find(x => x.id === selectedId);
@@ -647,10 +648,33 @@ function exportCSV() {
 function daysUntil(d){if(!d)return null;return Math.ceil((new Date(d)-new Date())/(1000*60*60*24));}
 function formatDate(s){if(!s)return'—';const d=new Date(s);return`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;}
 function formatDateShort(s){if(!s)return'—';const d=new Date(s);return`${d.getMonth()+1}/${d.getDate()}`;}
-function statusIcon(s){return{'有効':'✅','更新要':'⚠️','審査中':'🔍','期限切れ':'❌','ドラフト':'📝'}[s]||'📄';}
-function statusBg(s){return{'有効':'rgba(5,150,105,0.1)','更新要':'rgba(217,119,6,0.1)','審査中':'rgba(79,110,247,0.1)','期限切れ':'rgba(239,68,68,0.1)','ドラフト':'rgba(124,58,237,0.1)'}[s]||'rgba(85,94,118,0.1)';}
-function statusPill(s){return{'有効':'pill-green','更新要':'pill-orange','審査中':'pill-blue','期限切れ':'pill-red','ドラフト':'pill-purple'}[s]||'pill-gray';}
+function statusIcon(s){return{'有効':'✅','更新要':'⚠️','期限切れ':'❌'}[s]||'📄';}
+function statusBg(s){return{'有効':'rgba(5,150,105,0.1)','更新要':'rgba(217,119,6,0.1)','期限切れ':'rgba(239,68,68,0.1)'}[s]||'rgba(85,94,118,0.1)';}
+function statusPill(s){return{'有効':'pill-green','更新要':'pill-orange','期限切れ':'pill-red'}[s]||'pill-gray';}
 
+
+
+// 自動ステータス判定（180日前→更新要、期限切れ）
+function calcAutoStatus(c) {
+  if (!c.end_date) return '有効';
+  const days = daysUntil(c.end_date);
+  if (days < 0) return '期限切れ';
+  if (days <= 180) return '更新要';
+  return '有効';
+}
+
+async function autoUpdateStatuses(contracts) {
+  const updates = contracts.filter(c => {
+    if (!c.end_date) return false;
+    return calcAutoStatus(c) !== c.status;
+  });
+  if (updates.length === 0) return;
+  await Promise.all(updates.map(c =>
+    db.from('contracts').update({ status: calcAutoStatus(c) }).eq('id', c.id)
+  ));
+  updates.forEach(c => { c.status = calcAutoStatus(c); });
+  showToast(updates.length + '件のステータスを自動更新しました', 'success');
+}
 function showToast(msg,type='success'){
   const t=document.createElement('div');t.className=`toast ${type}`;
   t.innerHTML=`<span>${type==='success'?'✅':'❌'}</span> ${msg}`;
