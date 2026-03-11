@@ -518,6 +518,22 @@ function renderDetail(c) {
     ${c.notes?`<div class="section"><div class="section-title">メモ・備考</div><div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--text2);line-height:1.7">${c.notes}</div></div>`:''}
 
     <div class="section">
+      <div class="section-title">紐づく契約・覚書</div>
+      <div class="children-list">
+        ${children.map(ch=>`
+        <div class="child-card" onclick="selectContract('${ch.id}')">
+          <div style="font-size:18px">${statusIcon(ch.status)}</div>
+          <div style="flex:1">
+            <div class="child-card-name">${ch.name}</div>
+            <div class="child-card-meta">${ch.contract_type||'基本契約'} · ${ch.partner||'—'} · ${ch.end_date?formatDate(ch.end_date):'期限なし'}</div>
+          </div>
+          <span class="status-pill ${statusPill(ch.status)}">${ch.status}</span>
+        </div>`).join('')}
+        <button class="add-child-btn" onclick="openChildModal('${c.id}','${c.name}')">＋ 紐づく契約・覚書を追加</button>
+      </div>
+    </div>
+
+    <div class="section">
       <div class="section-title">契約書PDF</div>
       ${c.pdf_url?`
         <div class="pdf-viewer">
@@ -534,22 +550,6 @@ function renderDetail(c) {
           <div class="icon">📎</div>
           <p>PDFをドラッグ＆ドロップ、またはクリックして選択</p>
         </div>`}
-    </div>
-
-    <div class="section">
-      <div class="section-title">紐づく契約・覚書</div>
-      <div class="children-list">
-        ${children.map(ch=>`
-        <div class="child-card" onclick="selectContract('${ch.id}')">
-          <div style="font-size:18px">${statusIcon(ch.status)}</div>
-          <div style="flex:1">
-            <div class="child-card-name">${ch.name}</div>
-            <div class="child-card-meta">${ch.contract_type||'基本契約'} · ${ch.partner||'—'} · ${ch.end_date?formatDate(ch.end_date):'期限なし'}</div>
-          </div>
-          <span class="status-pill ${statusPill(ch.status)}">${ch.status}</span>
-        </div>`).join('')}
-        <button class="add-child-btn" onclick="openChildModal('${c.id}','${c.name}')">＋ 紐づく契約・覚書を追加</button>
-      </div>
     </div>
 
     <div style="font-size:11px;color:var(--text3);padding-top:8px">登録日時: ${new Date(c.created_at).toLocaleString('ja-JP')}</div>
