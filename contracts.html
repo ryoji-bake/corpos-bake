@@ -241,8 +241,9 @@
         <div class="filter-tab active" onclick="setFilter('all',this)">すべて</div>
         <div class="filter-tab" onclick="setFilter('有効',this)">有効</div>
         <div class="filter-tab" onclick="setFilter('更新要',this)">更新要</div>
-        <div class="filter-tab" onclick="setFilter('審査中',this)">審査中</div>
         <div class="filter-tab" onclick="setFilter('期限切れ',this)">期限切れ</div>
+        <div class="filter-tab" onclick="setFilter('賃貸契約類',this)">賃貸</div>
+        <div class="filter-tab" onclick="setFilter('その他契約類',this)">その他</div>
       </div>
       <div class="list-scroll" id="contract-list">
         <div class="loading"><div class="spinner"></div>読み込み中...</div>
@@ -316,6 +317,13 @@
       </div>
     </div>
     <div class="form-group">
+      <label class="form-label">カテゴリ</label>
+      <select class="form-select" id="f-category">
+        <option>賃貸契約類</option>
+        <option>その他契約類</option>
+      </select>
+    </div>
+    <div class="form-group">
       <label class="form-label">メモ・備考</label>
       <input class="form-input" id="f-notes" placeholder="自由記入">
     </div>
@@ -383,7 +391,7 @@ async function loadContracts() {
 function renderList() {
   const q = document.getElementById('search-input').value.toLowerCase();
   let filtered = allContracts.filter(c => {
-    const mf = currentFilter === 'all' || c.status === currentFilter;
+    const mf = currentFilter === 'all' || c.status === currentFilter || c.category === currentFilter;
     const ms = c.name.toLowerCase().includes(q) || (c.partner||'').toLowerCase().includes(q);
     return mf && ms;
   });
@@ -422,6 +430,7 @@ function contractItemHTML(c, isChild) {
       <div class="ci-name">${c.name}</div>
       <div class="ci-partner">${c.partner||'—'}</div>
       <div class="ci-meta">
+        <span class="ci-type">${c.category||''}</span>
         <span class="ci-type">${c.contract_type||'基本契約'}</span>
         <span class="status-pill ${statusPill(c.status)}">${c.status}</span>
         <span class="ci-date ${dateClass}">${dateLabel}</span>
@@ -479,6 +488,7 @@ function renderDetail(c) {
       <div class="info-card"><div class="info-label">残り日数</div><div class="info-val ${isExpired?'danger':isUrgent?'warning':''}">${daysLeft===null?'—':isExpired?`${Math.abs(daysLeft)}日超過`:`${daysLeft}日`}</div></div>
       <div class="info-card"><div class="info-label">契約金額</div><div class="info-val">${c.amount?'¥'+c.amount.toLocaleString():'—'}</div></div>
       <div class="info-card"><div class="info-label">自動更新</div><div class="info-val">${c.auto_renewal?'あり':'なし'}</div></div>
+      <div class="info-card"><div class="info-label">カテゴリ</div><div class="info-val">${c.category||'—'}</div></div>
       <div class="info-card"><div class="info-label">担当者</div><div class="info-val accent">${c.assignee||'—'}</div></div>
     </div>
 
@@ -581,6 +591,7 @@ function openEditModal(id) {
   document.getElementById('f-assignee').value=c.assignee||'';
   document.getElementById('f-contract-id').value=c.contract_id||'';
   document.getElementById('f-notes').value=c.notes||'';
+  document.getElementById('f-category').value=c.category||'その他契約類';
   populateParentSelect(c.parent_id);
   document.getElementById('modal').style.display='flex';
 }
@@ -615,6 +626,7 @@ async function saveContract() {
     contract_id:document.getElementById('f-contract-id').value.trim()||null,
     notes:document.getElementById('f-notes').value.trim()||null,
     parent_id:parentVal||null,
+    category:document.getElementById('f-category').value,
   };
   let error;
   if(editingId){({error}=await db.from('contracts').update(payload).eq('id',editingId));}
@@ -637,8 +649,8 @@ async function deleteContract(id) {
 }
 
 function exportCSV() {
-  const headers=['契約名','種別','取引先','ステータス','金額','開始日','終了日','担当者','契約ID'];
-  const rows=allContracts.map(c=>[c.name,c.contract_type||'',c.partner,c.status,c.amount||'',c.start_date||'',c.end_date||'',c.assignee||'',c.contract_id||'']);
+  const headers=['契約名','カテゴリ','種別','取引先','ステータス','金額','開始日','終了日','担当者','契約ID'];
+  const rows=allContracts.map(c=>[c.name,c.category||'',c.contract_type||'',c.partner,c.status,c.amount||'',c.start_date||'',c.end_date||'',c.assignee||'',c.contract_id||'']);
   const csv=[headers,...rows].map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
   const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`contracts_${new Date().toISOString().slice(0,10)}.csv`;a.click();
