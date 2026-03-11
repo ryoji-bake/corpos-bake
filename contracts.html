@@ -568,7 +568,8 @@ async function handleDetailPDF(e, contractId) {
 }
 async function uploadPdfForContract(file, contractId) {
   showToast('PDFをアップロード中...', 'success');
-  const path = `${contractId}/${Date.now()}_${file.name}`;
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${contractId}/${Date.now()}_${safeName}`;
   const { error: upErr } = await db.storage.from('contracts-pdf').upload(path, file);
   if (upErr) { showToast('アップロード失敗: ' + upErr.message, 'error'); return; }
   const { data: urlData } = db.storage.from('contracts-pdf').getPublicUrl(path);
