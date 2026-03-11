@@ -86,7 +86,10 @@
   .search-input { display:flex; align-items:center; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:7px 12px; }
   .search-input input { background:none; border:none; outline:none; color:var(--text); font-size:13px; font-family:inherit; width:100%; }
   .search-input input::placeholder { color:var(--text3); }
-  .filter-tabs { display:flex; gap:3px; padding:8px 14px; border-bottom:1px solid var(--border); flex-shrink:0; flex-wrap:wrap; }
+  .filter-tabs { display:flex; flex-direction:column; gap:0; padding:10px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
+  .filter-row { display:flex; align-items:center; gap:3px; flex-wrap:wrap; }
+  .filter-label { font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:0.5px; margin-right:4px; white-space:nowrap; min-width:42px; }
+  .filter-divider { height:1px; background:var(--border); margin:6px 0; }
   .filter-tab { padding:3px 9px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; color:var(--text3); transition:all 0.15s; }
   .filter-tab:hover { color:var(--text2); background:var(--surface3); }
   .filter-tab.active { background:var(--glow); color:var(--accent); }
@@ -238,12 +241,19 @@
         </div>
       </div>
       <div class="filter-tabs">
+        <div class="filter-row">
+        <span class="filter-label">ステータス</span>
         <div class="filter-tab active" onclick="setFilter('all',this)">すべて</div>
         <div class="filter-tab" onclick="setFilter('有効',this)">有効</div>
         <div class="filter-tab" onclick="setFilter('更新要',this)">更新要</div>
         <div class="filter-tab" onclick="setFilter('期限切れ',this)">期限切れ</div>
-        <div class="filter-tab" onclick="setFilter('賃貸契約類',this)">賃貸</div>
-        <div class="filter-tab" onclick="setFilter('その他契約類',this)">その他</div>
+      </div>
+      <div class="filter-divider"></div>
+      <div class="filter-row">
+        <span class="filter-label">カテゴリ</span>
+        <div class="filter-tab" onclick="setFilter('賃貸契約類',this)">賃貸契約類</div>
+        <div class="filter-tab" onclick="setFilter('その他契約類',this)">その他契約類</div>
+      </div>
       </div>
       <div class="list-scroll" id="contract-list">
         <div class="loading"><div class="spinner"></div>読み込み中...</div>
@@ -343,6 +353,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 let allContracts = [];
 let selectedId = null;
 let currentFilter = 'all';
+let currentCategory = null;
 let editingId = null;
 let currentUser = null;
 
@@ -391,9 +402,11 @@ async function loadContracts() {
 function renderList() {
   const q = document.getElementById('search-input').value.toLowerCase();
   let filtered = allContracts.filter(c => {
-    const mf = currentFilter === 'all' || c.status === currentFilter || c.category === currentFilter;
-    const ms = c.name.toLowerCase().includes(q) || (c.partner||'').toLowerCase().includes(q);
-    return mf && ms;
+    const ms_filter = currentFilter === 'all' || c.status === currentFilter;
+    const mc = !currentCategory || c.category === currentCategory;
+    const mf = ms_filter && mc;
+    const msearch = c.name.toLowerCase().includes(q) || (c.partner||'').toLowerCase().includes(q);
+    return mf && msearch;
   });
   document.getElementById('count-badge').textContent = filtered.length + '件';
 
@@ -440,8 +453,18 @@ function contractItemHTML(c, isChild) {
 }
 
 function setFilter(val, el) {
-  currentFilter = val;
-  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  // ステータスとカテゴリを独立して管理
+  const statusVals = ['all','有効','更新要','期限切れ'];
+  const categoryVals = ['賃貸契約類','その他契約類'];
+  if (statusVals.includes(val)) {
+    currentFilter = val;
+    document.querySelectorAll('.filter-row:first-child .filter-tab').forEach(t => t.classList.remove('active'));
+  } else {
+    currentCategory = currentCategory === val ? null : val;
+    document.querySelectorAll('.filter-row:last-child .filter-tab').forEach(t => t.classList.remove('active'));
+    if (currentCategory) el.classList.add('active');
+    renderList(); return;
+  }
   el.classList.add('active');
   renderList();
 }
