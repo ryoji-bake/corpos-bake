@@ -153,36 +153,7 @@
       <button class="btn btn-primary" id="login-btn" onclick="handleLogin()">ログイン</button>
 
       <div class="toggle-mode">
-        アカウントをお持ちでない方は
-        <span class="toggle-link" onclick="showSignup()">新規登録</span>
-      </div>
-
-      <div class="divider">または</div>
-
-      <div style="text-align:center">
         <span class="toggle-link" onclick="showReset()">パスワードを忘れた方</span>
-      </div>
-    </div>
-
-    <!-- SIGNUP FORM -->
-    <div id="signup-form" style="display:none">
-      <div class="form-group">
-        <label class="form-label">メールアドレス</label>
-        <input class="form-input" type="email" id="signup-email" placeholder="your@company.com">
-      </div>
-      <div class="form-group">
-        <label class="form-label">パスワード（8文字以上）</label>
-        <input class="form-input" type="password" id="signup-password" placeholder="••••••••">
-      </div>
-      <div class="form-group">
-        <label class="form-label">パスワード（確認）</label>
-        <input class="form-input" type="password" id="signup-password2" placeholder="••••••••">
-      </div>
-      <button class="btn btn-primary" id="signup-btn" onclick="handleSignup()">アカウント作成</button>
-
-      <div class="toggle-mode">
-        すでにアカウントをお持ちの方は
-        <span class="toggle-link" onclick="showLogin()">ログイン</span>
       </div>
     </div>
 
@@ -245,17 +216,9 @@ function setLoading(btnId, loading) {
 
 function showLogin() {
   document.getElementById('login-form').style.display = 'block';
-  document.getElementById('signup-form').style.display = 'none';
   document.getElementById('reset-form').style.display = 'none';
   document.getElementById('card-title').textContent = 'ログイン';
   document.getElementById('login-btn').innerHTML = 'ログイン';
-  clearMessages();
-}
-function showSignup() {
-  document.getElementById('login-form').style.display = 'none';
-  document.getElementById('signup-form').style.display = 'block';
-  document.getElementById('reset-form').style.display = 'none';
-  document.getElementById('card-title').textContent = 'アカウント作成';
   clearMessages();
 }
 function showReset() {
@@ -281,26 +244,6 @@ async function handleLogin() {
   }
 }
 
-async function handleSignup() {
-  const email = document.getElementById('signup-email').value.trim();
-  const password = document.getElementById('signup-password').value;
-  const password2 = document.getElementById('signup-password2').value;
-  if (!email || !password) { showError('全項目を入力してください'); return; }
-  if (password.length < 8) { showError('パスワードは8文字以上にしてください'); return; }
-  if (password !== password2) { showError('パスワードが一致しません'); return; }
-  setLoading('signup-btn', true);
-  const { error } = await db.auth.signUp({ email, password });
-  if (error) {
-    showError('登録に失敗しました: ' + error.message);
-    setLoading('signup-btn', false);
-    document.getElementById('signup-btn').innerHTML = 'アカウント作成';
-  } else {
-    showSuccess('確認メールを送信しました。メールのリンクをクリックして登録を完了してください。');
-    setLoading('signup-btn', false);
-    document.getElementById('signup-btn').innerHTML = 'アカウント作成';
-  }
-}
-
 async function handleReset() {
   const email = document.getElementById('reset-email').value.trim();
   if (!email) { showError('メールアドレスを入力してください'); return; }
@@ -321,10 +264,8 @@ async function handleReset() {
 document.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
     const loginForm = document.getElementById('login-form');
-    const signupForm = document.getElementById('signup-form');
     const resetForm = document.getElementById('reset-form');
     if (loginForm.style.display !== 'none') handleLogin();
-    else if (signupForm.style.display !== 'none') handleSignup();
     else if (resetForm.style.display !== 'none') handleReset();
   }
 });
