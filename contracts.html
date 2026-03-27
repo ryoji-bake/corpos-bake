@@ -206,6 +206,55 @@
   .contracts-table tbody tr.table-selected td { background:rgba(79,110,247,0.08); }
   .text-danger { color:var(--danger); font-weight:600; }
   .text-warning { color:var(--accent4); font-weight:600; }
+
+  .mobile-back { display:none; }
+
+  @media (max-width: 768px) {
+    body { flex-direction:column; height:auto; min-height:100vh; }
+
+    /* サイドバー → ボトムナビ */
+    .sidebar {
+      position:fixed; bottom:0; left:0; right:0;
+      width:100%; height:52px; flex-direction:row;
+      justify-content:space-around; padding:0 12px;
+      border-right:none; border-top:1px solid var(--border);
+      z-index:50; overflow:visible;
+    }
+    .logo { display:none; }
+    .nav-divider { display:none; }
+    .sidebar-bottom { margin-top:0; flex-direction:row; margin-left:auto; }
+    .user-menu { bottom:52px; left:auto; right:0; }
+
+    /* メインエリア */
+    .main { flex:1; height:auto; overflow-y:auto; padding-bottom:52px; }
+    .topbar { padding:0 12px; gap:8px; height:48px; }
+    .topbar-right { gap:6px; }
+    #view-toggle-btn { display:none; }
+    .btn { padding:6px 10px; font-size:12px; }
+
+    /* ボディレイアウト */
+    .body-layout { flex-direction:column; overflow:visible; min-height:0; }
+
+    /* リストパネル */
+    .list-panel { width:100%; border-right:none; border-bottom:1px solid var(--border); }
+    .list-scroll { max-height:38vh; }
+
+    /* 詳細パネル */
+    .detail-panel { padding:14px; }
+    .info-grid { grid-template-columns:1fr 1fr; }
+    .detail-hero { flex-wrap:wrap; gap:12px; }
+    .detail-actions { width:100%; justify-content:flex-end; margin-left:0; }
+    .pdf-embed { height:400px; }
+
+    /* モーダル */
+    .modal { width:calc(100vw - 24px); max-height:90vh; padding:18px; }
+    .form-row { grid-template-columns:1fr; }
+
+    /* スマホ: 詳細全画面モード */
+    body.mobile-detail .list-panel { display:none; }
+    body.mobile-detail .detail-panel { min-height:calc(100vh - 48px - 52px); }
+    .mobile-back { display:inline-flex; margin-bottom:14px; font-size:12px; }
+  }
 </style>
 </head>
 <body>
@@ -535,6 +584,7 @@ function selectContract(id) {
     viewMode = 'detail';
     document.getElementById('view-toggle-btn').textContent = '📋 テーブル表示';
   }
+  if (window.innerWidth <= 768) document.body.classList.add('mobile-detail');
   renderList();
   const c = allContracts.find(x => x.id === id);
   if (c) renderDetail(c);
@@ -544,9 +594,17 @@ function selectContractFromTable(id) {
   selectedId = id;
   viewMode = 'detail';
   document.getElementById('view-toggle-btn').textContent = '📋 テーブル表示';
+  if (window.innerWidth <= 768) document.body.classList.add('mobile-detail');
   renderList();
   const c = allContracts.find(x => x.id === id);
   if (c) renderDetail(c);
+}
+
+function closeMobileDetail() {
+  document.body.classList.remove('mobile-detail');
+  selectedId = null;
+  document.getElementById('detail-panel').innerHTML = '<div class="empty-state"><div class="icon">📄</div><p>契約を選択してください</p></div>';
+  renderList();
 }
 
 function toggleViewMode() {
@@ -611,6 +669,7 @@ function renderDetail(c) {
   const parent = c.parent_id ? allContracts.find(x => x.id === c.parent_id) : null;
 
   document.getElementById('detail-panel').innerHTML = `
+    <button class="btn btn-ghost mobile-back" onclick="closeMobileDetail()">← 一覧に戻る</button>
     ${isUrgent?`<div class="reminder-card reminder-orange"><div style="font-size:20px">⚠️</div><div><div class="reminder-title" style="color:var(--accent4)">更新期限まで${daysLeft}日</div><div class="reminder-desc">${formatDate(c.end_date)}までに更新してください</div></div></div>`:''}
     ${isExpired?`<div class="reminder-card reminder-red"><div style="font-size:20px">🚨</div><div><div class="reminder-title" style="color:var(--danger)">この契約は期限切れです</div><div class="reminder-desc">至急、更新または終了処理を行ってください</div></div></div>`:''}
 
