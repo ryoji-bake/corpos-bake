@@ -432,6 +432,7 @@ let currentUser = null;
 let sortBy = 'created_at';
 let sortDir = 'desc';
 let viewMode = 'detail';
+let tableFilter = 'all';
 
 // ── AUTH CHECK ──
 async function initAuth() {
@@ -498,11 +499,37 @@ function getFilteredSorted() {
   return arr;
 }
 
+function getTableData() {
+  const q = document.getElementById('search-input').value.toLowerCase();
+  let arr = allContracts.filter(c => {
+    const ms = tableFilter === 'all' || c.status === tableFilter;
+    const msearch = !q || [c.name, c.partner, c.assignee, c.contract_id, c.notes, c.contract_type]
+      .some(v => (v||'').toLowerCase().includes(q));
+    return ms && msearch;
+  });
+  arr.sort((a, b) => {
+    let va = a[sortBy], vb = b[sortBy];
+    if (sortBy === 'amount') { va = va||0; vb = vb||0; }
+    else if (['end_date','created_at'].includes(sortBy)) {
+      const inf = sortDir === 'asc' ? '9999' : '0';
+      va = va ? new Date(va) : new Date(inf);
+      vb = vb ? new Date(vb) : new Date(inf);
+    } else { va = (va||'').toLowerCase(); vb = (vb||'').toLowerCase(); }
+    return va < vb ? (sortDir==='asc'?-1:1) : va > vb ? (sortDir==='asc'?1:-1) : 0;
+  });
+  return arr;
+}
+
 function renderList() {
+  if (viewMode === 'table') {
+    const tableData = getTableData();
+    document.getElementById('count-badge').textContent = tableData.length + '件';
+    renderTable(tableData);
+    return;
+  }
+
   const filtered = getFilteredSorted();
   document.getElementById('count-badge').textContent = filtered.length + '件';
-
-  if (viewMode === 'table') { renderTable(filtered); return; }
 
   if (filtered.length === 0) {
     document.getElementById('contract-list').innerHTML = '<div style="padding:28px;text-align:center;color:var(--text3);font-size:13px">該当なし</div>';
@@ -593,6 +620,7 @@ function selectContract(id) {
 function selectContractFromTable(id) {
   selectedId = id;
   viewMode = 'detail';
+  tableFilter = 'all';
   document.getElementById('view-toggle-btn').textContent = '📋 テーブル表示';
   if (window.innerWidth <= 768) document.body.classList.add('mobile-detail');
   renderList();
@@ -615,6 +643,7 @@ function toggleViewMode() {
     renderTable(getFilteredSorted());
   } else {
     viewMode = 'detail';
+    tableFilter = 'all';
     btn.textContent = '📋 テーブル表示';
     if (selectedId) {
       const c = allContracts.find(x => x.id === selectedId);
@@ -625,10 +654,25 @@ function toggleViewMode() {
   }
 }
 
+function setTableFilter(val, el) {
+  tableFilter = val;
+  document.querySelectorAll('.table-filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderList();
+}
+
 function renderTable(filtered) {
-  if (!filtered) filtered = getFilteredSorted();
+  if (!filtered) filtered = getTableData();
+  const filterTabsHtml = `
+    <div style="display:flex;align-items:center;gap:3px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap">
+      <span class="filter-label">ステータス</span>
+      <div class="filter-tab table-filter-tab ${tableFilter==='all'?'active':''}" onclick="setTableFilter('all',this)">すべて</div>
+      <div class="filter-tab table-filter-tab ${tableFilter==='有効'?'active':''}" onclick="setTableFilter('有効',this)">有効</div>
+      <div class="filter-tab table-filter-tab ${tableFilter==='更新要'?'active':''}" onclick="setTableFilter('更新要',this)">更新要</div>
+      <div class="filter-tab table-filter-tab ${tableFilter==='期限切れ'?'active':''}" onclick="setTableFilter('期限切れ',this)">期限切れ</div>
+    </div>`;
   if (filtered.length === 0) {
-    document.getElementById('detail-panel').innerHTML = '<div class="empty-state"><div class="icon">📋</div><p>該当する契約がありません</p></div>';
+    document.getElementById('detail-panel').innerHTML = filterTabsHtml + '<div class="empty-state"><div class="icon">📋</div><p>該当する契約がありません</p></div>';
     return;
   }
   const rows = filtered.map(c => {
@@ -649,7 +693,7 @@ function renderTable(filtered) {
       <td style="font-size:11px;color:var(--text3)">${c.contract_id||'—'}</td>
     </tr>`;
   }).join('');
-  document.getElementById('detail-panel').innerHTML = `
+  document.getElementById('detail-panel').innerHTML = filterTabsHtml + `
     <div class="table-wrap">
       <table class="contracts-table">
         <thead><tr>
